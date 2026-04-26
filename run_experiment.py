@@ -109,12 +109,18 @@ def main():
     # ------------------------------------------------------------------
     # 1. Load model
     # ------------------------------------------------------------------
-    print(f"\n[1/4] Loading {args.model} ({args.dtype}) ...")
+    # float16 is not supported for computation on CPU; fall back to float32
+    if device == "cpu" and dtype == torch.float16:
+        dtype = torch.float32
+        print("      Note: float16 not supported on CPU, using float32")
+
+    print(f"\n[1/4] Loading {args.model} ({dtype}) ...")
     t0 = time.perf_counter()
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
     model = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=dtype, device_map="auto"
+        args.model, torch_dtype=dtype, use_safetensors=True
     )
+    model = model.to(device)
     model.eval()
     print(f"      Loaded in {time.perf_counter() - t0:.1f}s")
 
