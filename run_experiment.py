@@ -118,7 +118,9 @@ def main():
     t0 = time.perf_counter()
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
     model = AutoModelForCausalLM.from_pretrained(
-        args.model, torch_dtype=dtype, use_safetensors=True
+        args.model,
+        torch_dtype=dtype,
+        low_cpu_mem_usage=False,
     )
     model = model.to(device)
     model.eval()
