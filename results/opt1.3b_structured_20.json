@@ -1,0 +1,18 @@
+{
+  "model": "facebook/opt-1.3b",
+  "method": "structured",
+  "dtype": "float16",
+  "target_sparsity": 0.2,
+  "param_reduction": 0.1798,
+  "actual_sparsity": 0.1798,
+  "params_before": 1315758080,
+  "params_after": 1079171696,
+  "ppl_wikitext2": 1138.7153,
+  "ppl_ptb": 1346.1702,
+  "latency_mean_ms": 2142.05,
+  "latency_std_ms": 186.96,
+  "throughput_tokens_per_sec": 59.76,
+  "peak_memory_gb": 2.216,
+  "bench_new_tokens": 128,
+  "bench_trials": 30
+}
