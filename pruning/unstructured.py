@@ -56,5 +56,9 @@ def prune_wanda(model: nn.Module, calib_data: torch.Tensor, sparsity: float, dev
             norm = norm / norm.max().clamp(min=1e-8)
 
             score = W.abs() * norm.unsqueeze(0)      # [out, in]
-            threshold = torch.quantile(score, sparsity)
-            module.weight.data = (W * (score >= threshold)).to(module.weight.dtype)
+
+            # torch.quantile has a 2^24 element limit; use per-row sort instead.
+            # This also matches the original Wanda implementation (row-wise threshold).
+            k = max(1, int(score.shape[1] * sparsity))
+            row_threshold = score.sort(dim=1).values[:, k - 1].unsqueeze(1)  # [out, 1]
+            module.weight.data = (W * (score >= row_threshold)).to(module.weight.dtype)
