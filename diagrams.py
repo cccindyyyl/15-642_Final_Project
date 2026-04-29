@@ -31,9 +31,10 @@ C_NORM    = "#FF9800"   # orange – activation norm bar
 # ═══════════════════════════════════════════════════════════════════════════
 
 def draw_unstructured():
-    fig = plt.figure(figsize=(16, 9))
+    fig = plt.figure(figsize=(16, 7))
     fig.patch.set_facecolor("white")
-    gs = gridspec.GridSpec(2, 4, figure=fig, hspace=0.55, wspace=0.45)
+    gs = gridspec.GridSpec(2, 4, figure=fig, hspace=0.08, wspace=0.45,
+                           height_ratios=[1.2, 1])
 
     rows, cols = 5, 6   # small weight matrix for illustration
 
@@ -174,186 +175,138 @@ def draw_unstructured():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def draw_structured():
-    fig = plt.figure(figsize=(16, 10))
+    fig, axes = plt.subplots(1, 3, figsize=(17, 6))
     fig.patch.set_facecolor("white")
-    gs = gridspec.GridSpec(2, 3, figure=fig, hspace=0.55, wspace=0.4)
 
-    # ── Attention head pruning diagram ───────────────────────────────────────
-    def draw_head_pruning(ax):
-        n_heads = 8
-        head_scores = np.array([0.91, 0.43, 0.78, 0.22, 0.85, 0.31, 0.67, 0.15])
-        keep = head_scores >= np.sort(head_scores)[n_heads // 2]   # keep top 50 %
+    # ── Panel 1: Attention head pruning ──────────────────────────────────────
+    ax = axes[0]
+    n_heads = 8
+    head_scores = np.array([0.91, 0.43, 0.78, 0.22, 0.85, 0.31, 0.67, 0.15])
+    keep_heads = head_scores >= np.sort(head_scores)[n_heads // 2]
 
-        ax.set_xlim(-0.5, n_heads + 0.5)
-        ax.set_ylim(-0.5, 3.2)
-        ax.axis("off")
-        ax.set_title("Attention Head Pruning\n(score = L1 norm of out_proj columns)",
-                     fontsize=10, fontweight="bold", pad=8)
+    ax.set_xlim(-0.5, n_heads + 0.5)
+    ax.set_ylim(0.0, 3.6)
+    ax.axis("off")
+    ax.set_title("① Attention Head Pruning", fontsize=11, fontweight="bold", pad=10)
 
-        for h in range(n_heads):
-            color = C_HEAD_ON if keep[h] else C_HEAD_OFF
-            rect  = mpatches.FancyBboxPatch(
-                (h + 0.05, 1.4), 0.85, 0.9,
-                boxstyle="round,pad=0.06", linewidth=1.2,
-                edgecolor=color, facecolor=color, alpha=0.75
-            )
-            ax.add_patch(rect)
-            ax.text(h + 0.475, 1.85, f"H{h}", ha="center", va="center",
-                    fontsize=8, color="white", fontweight="bold")
-            ax.text(h + 0.475, 1.25, f"{head_scores[h]:.2f}",
-                    ha="center", va="center", fontsize=7.5, color="#555")
-            if not keep[h]:
-                ax.text(h + 0.475, 1.85, "✕", ha="center", va="center",
-                        fontsize=14, color="white", fontweight="bold", alpha=0.6)
+    for h in range(n_heads):
+        color = C_HEAD_ON if keep_heads[h] else C_HEAD_OFF
+        rect = mpatches.FancyBboxPatch(
+            (h + 0.05, 1.5), 0.85, 0.85,
+            boxstyle="round,pad=0.06", linewidth=1.2,
+            edgecolor=color, facecolor=color, alpha=0.8
+        )
+        ax.add_patch(rect)
+        ax.text(h + 0.475, 1.925, f"H{h}", ha="center", va="center",
+                fontsize=8, color="white", fontweight="bold")
+        ax.text(h + 0.475, 1.3, f"{head_scores[h]:.2f}",
+                ha="center", va="center", fontsize=7.5, color="#555")
+        if not keep_heads[h]:
+            ax.text(h + 0.475, 1.925, "✕", ha="center", va="center",
+                    fontsize=13, color="white", fontweight="bold")
 
-        ax.text(4, 2.65, "Score each head → keep top 50%", ha="center",
-                fontsize=9, style="italic", color="#555")
-        ax.text(4, 0.6, "Physically remove pruned head rows/cols\nfrom Q, K, V, out_proj matrices",
-                ha="center", fontsize=9, color="#333",
-                bbox=dict(boxstyle="round,pad=0.4", facecolor="#E8F5E9",
-                          edgecolor=C_HEAD_ON, linewidth=1.2))
+    ax.text(3.5, 3.2, "score = L1 norm of out_proj columns → keep top 50%",
+            ha="center", va="center", fontsize=8.5, style="italic", color="#444")
+    ax.text(3.5, 0.55, "Slice Q / K / V / out_proj → update num_heads & embed_dim",
+            ha="center", va="center", fontsize=8.5, color="#333",
+            bbox=dict(boxstyle="round,pad=0.35", facecolor="#E8F5E9",
+                      edgecolor=C_HEAD_ON, linewidth=1.2))
 
-        kept_patch   = mpatches.Patch(color=C_HEAD_ON, label="Kept head")
-        pruned_patch = mpatches.Patch(color=C_HEAD_OFF, label="Pruned head")
-        ax.legend(handles=[kept_patch, pruned_patch], loc="lower right",
-                  fontsize=8, framealpha=0.7)
+    ax.legend(handles=[mpatches.Patch(color=C_HEAD_ON, label="Kept"),
+                        mpatches.Patch(color=C_HEAD_OFF, label="Pruned")],
+              loc="lower left", fontsize=8, framealpha=0.8)
 
-    # ── MLP neuron pruning diagram ───────────────────────────────────────────
-    def draw_mlp_pruning(ax):
-        n_neurons  = 8
-        neuron_scores = np.array([0.82, 0.19, 0.65, 0.44, 0.91, 0.12, 0.77, 0.36])
-        keep = neuron_scores >= np.sort(neuron_scores)[n_neurons // 2]
+    # ── Panel 2: MLP neuron pruning ───────────────────────────────────────────
+    ax = axes[1]
+    n_neurons = 8
+    neuron_scores = np.array([0.82, 0.19, 0.65, 0.44, 0.91, 0.12, 0.77, 0.36])
+    keep_neurons = neuron_scores >= np.sort(neuron_scores)[n_neurons // 2]
+    kept_idx = [n for n in range(n_neurons) if keep_neurons[n]]
 
-        ax.set_xlim(-0.3, 4.5)
-        ax.set_ylim(-0.5, n_neurons + 0.2)
-        ax.axis("off")
-        ax.set_title("MLP Neuron Pruning\n(score = L1 norm of fc1 output rows)",
-                     fontsize=10, fontweight="bold", pad=8)
+    ax.set_xlim(-0.2, 5.0)
+    ax.set_ylim(-0.3, n_neurons + 0.3)
+    ax.axis("off")
+    ax.set_title("② MLP Neuron Pruning", fontsize=11, fontweight="bold", pad=10)
 
-        # fc1 neurons (left column)
-        for n in range(n_neurons):
-            color = C_MLP_ON if keep[n] else C_MLP_OFF
-            rect  = mpatches.FancyBboxPatch(
-                (0.05, n + 0.08), 0.9, 0.78,
-                boxstyle="round,pad=0.05", linewidth=1.1,
-                edgecolor=color, facecolor=color, alpha=0.7
-            )
-            ax.add_patch(rect)
-            label = f"N{n}\n{neuron_scores[n]:.2f}"
-            ax.text(0.5, n + 0.47, label, ha="center", va="center",
-                    fontsize=7, color="white", fontweight="bold")
-            if not keep[n]:
-                ax.text(0.5, n + 0.47, "✕", ha="center", va="center",
-                        fontsize=14, color="white", alpha=0.55, fontweight="bold")
+    for n in range(n_neurons):
+        color = C_MLP_ON if keep_neurons[n] else C_MLP_OFF
+        rect = mpatches.FancyBboxPatch(
+            (0.05, n + 0.1), 0.85, 0.72,
+            boxstyle="round,pad=0.05", linewidth=1.1,
+            edgecolor=color, facecolor=color, alpha=0.75
+        )
+        ax.add_patch(rect)
+        ax.text(0.475, n + 0.47, f"N{n}  {neuron_scores[n]:.2f}",
+                ha="center", va="center", fontsize=7, color="white", fontweight="bold")
+        if not keep_neurons[n]:
+            ax.text(0.9, n + 0.47, "✕", ha="left", va="center",
+                    fontsize=11, color=C_MLP_OFF, fontweight="bold")
 
-        ax.text(0.5, -0.35, "fc1 neurons", ha="center", fontsize=8,
-                color="#555", style="italic")
+    ax.text(0.475, -0.22, "fc1 neurons\n(before)", ha="center", va="top",
+            fontsize=8, color="#555", style="italic")
 
-        # arrow
-        ax.annotate("", xy=(2.15, n_neurons / 2), xytext=(1.1, n_neurons / 2),
-                    arrowprops=dict(arrowstyle="-|>", color=C_ARROW, lw=1.5))
-        ax.text(1.6, n_neurons / 2 + 0.35, "remove rows\n& columns",
-                ha="center", fontsize=8, color="#555", style="italic")
+    ax.annotate("", xy=(2.3, n_neurons / 2), xytext=(1.05, n_neurons / 2),
+                arrowprops=dict(arrowstyle="-|>", color=C_ARROW, lw=1.8))
+    ax.text(1.65, n_neurons / 2 + 0.5, "remove\nrows & cols",
+            ha="center", fontsize=8, color="#555", style="italic")
 
-        # kept neurons only (right column)
-        kept_idx = [n for n in range(n_neurons) if keep[n]]
-        for i, n in enumerate(kept_idx):
-            rect = mpatches.FancyBboxPatch(
-                (2.2, i * (n_neurons / len(kept_idx)) + 0.15), 0.9, 0.65,
-                boxstyle="round,pad=0.05", linewidth=1.1,
-                edgecolor=C_MLP_ON, facecolor=C_MLP_ON, alpha=0.7
-            )
-            ax.add_patch(rect)
-            ax.text(2.65, i * (n_neurons / len(kept_idx)) + 0.47,
-                    f"N{n}", ha="center", va="center",
-                    fontsize=7.5, color="white", fontweight="bold")
+    spacing = n_neurons / len(kept_idx)
+    for i, n in enumerate(kept_idx):
+        rect = mpatches.FancyBboxPatch(
+            (2.4, i * spacing + 0.15), 0.85, 0.62,
+            boxstyle="round,pad=0.05", linewidth=1.1,
+            edgecolor=C_MLP_ON, facecolor=C_MLP_ON, alpha=0.75
+        )
+        ax.add_patch(rect)
+        ax.text(2.825, i * spacing + 0.47, f"N{n}",
+                ha="center", va="center", fontsize=8, color="white", fontweight="bold")
 
-        ax.text(2.65, -0.35, "smaller fc1/fc2", ha="center", fontsize=8,
-                color="#555", style="italic")
+    ax.text(2.825, -0.22, "fc1/fc2\n(after, smaller)", ha="center", va="top",
+            fontsize=8, color="#555", style="italic")
 
-    # ── Matrix reshape diagram ───────────────────────────────────────────────
-    def draw_reshape(ax):
-        ax.axis("off")
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 6)
-        ax.set_title("Physical Weight Matrix Reshape", fontsize=10,
-                     fontweight="bold", pad=8)
+    ax.text(1.5, n_neurons + 0.15, "score = L1 norm of fc1 rows",
+            ha="center", va="bottom", fontsize=8.5, style="italic", color="#444")
 
-        def draw_mat(x, y, w, h, color, label, sublabel=""):
-            rect = mpatches.FancyBboxPatch(
-                (x, y), w, h, boxstyle="round,pad=0.1", linewidth=1.5,
-                edgecolor=color, facecolor=color, alpha=0.25
-            )
-            ax.add_patch(rect)
-            ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
-                    fontsize=9, fontweight="bold", color=color)
-            if sublabel:
-                ax.text(x + w / 2, y - 0.35, sublabel, ha="center",
-                        va="top", fontsize=7.5, color="#666", style="italic")
+    # ── Panel 3: Matrix reshape ───────────────────────────────────────────────
+    ax = axes[2]
+    ax.axis("off")
+    ax.set_xlim(0, 10)
+    ax.set_ylim(-0.3, 7.8)
+    ax.set_title("③ Physical Weight Reshape", fontsize=11, fontweight="bold", pad=10)
 
-        # Before
-        ax.text(2.5, 5.6, "Before pruning", ha="center", fontsize=9,
-                fontweight="bold", color="#333")
-        draw_mat(0.3, 2.8, 4.2, 2.4, C_KEPT,
-                 "q_proj\n[H × H]", "[2048 × 2048]")
-        draw_mat(0.3, 0.2, 4.2, 2.2, "#9C27B0",
-                 "out_proj\n[H × H]", "[2048 × 2048]")
+    def draw_mat(x, y, w, h, color, label, sublabel=""):
+        ax.add_patch(mpatches.FancyBboxPatch(
+            (x, y), w, h, boxstyle="round,pad=0.1", linewidth=1.5,
+            edgecolor=color, facecolor=color, alpha=0.2
+        ))
+        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
+                fontsize=8.5, fontweight="bold", color=color)
+        if sublabel:
+            ax.text(x + w / 2, y - 0.12, sublabel, ha="center", va="top",
+                    fontsize=7.5, color="#666", style="italic")
 
-        ax.annotate("", xy=(6.0, 3.0), xytext=(4.7, 3.0),
-                    arrowprops=dict(arrowstyle="-|>", color=C_ARROW, lw=2))
-        ax.text(5.35, 3.4, "prune\n40% heads", ha="center", fontsize=8,
-                color="#555", style="italic")
+    ax.text(2.5, 7.5, "Before", ha="center", fontsize=9, fontweight="bold", color="#333")
+    draw_mat(0.3, 4.5, 4.0, 2.5, C_KEPT, "q_proj\n[H × H]", "[2048 × 2048]")
+    draw_mat(0.3, 1.5, 4.0, 2.5, "#9C27B0", "out_proj\n[H × H]", "[2048 × 2048]")
 
-        # After
-        ax.text(8.0, 5.6, "After pruning", ha="center", fontsize=9,
-                fontweight="bold", color="#333")
-        draw_mat(6.3, 2.8, 2.5, 2.4, C_KEPT,
-                 "q_proj\n[H′ × H]", "[1229 × 2048]")
-        draw_mat(6.3, 0.2, 2.5, 2.2, "#9C27B0",
-                 "out_proj\n[H × H′]", "[2048 × 1229]")
+    ax.annotate("", xy=(6.1, 3.8), xytext=(4.5, 3.8),
+                arrowprops=dict(arrowstyle="-|>", color=C_ARROW, lw=2))
+    ax.text(5.3, 4.3, "prune\n40% heads", ha="center", fontsize=8,
+            color="#555", style="italic")
 
-        ax.text(5.0, 0.0,
-                "Smaller tensors → smaller matmuls → real memory & potential latency savings",
-                ha="center", fontsize=8.5, color="#333",
-                bbox=dict(boxstyle="round,pad=0.4", facecolor="#FFF8E1",
-                          edgecolor="#FF9800", linewidth=1.2))
+    ax.text(7.8, 7.5, "After", ha="center", fontsize=9, fontweight="bold", color="#333")
+    draw_mat(6.3, 4.5, 2.4, 2.5, C_KEPT, "q_proj\n[H′ × H]", "[1229 × 2048]")
+    draw_mat(6.3, 1.5, 2.4, 2.5, "#9C27B0", "out_proj\n[H × H′]", "[2048 × 1229]")
 
-    # ── lay out subplots ─────────────────────────────────────────────────────
-    ax_head    = fig.add_subplot(gs[0, 0])
-    ax_mlp     = fig.add_subplot(gs[0, 1])
-    ax_reshape = fig.add_subplot(gs[0, 2])
-    draw_head_pruning(ax_head)
-    draw_mlp_pruning(ax_mlp)
-    draw_reshape(ax_reshape)
+    ax.text(5.0, 0.7,
+            "Smaller tensors → real memory savings\n& potential latency improvement",
+            ha="center", va="center", fontsize=8.5, color="#333",
+            bbox=dict(boxstyle="round,pad=0.4", facecolor="#FFF8E1",
+                      edgecolor="#FF9800", linewidth=1.2))
 
-    # ── formula / summary box ────────────────────────────────────────────────
-    ax_sum = fig.add_subplot(gs[1, :])
-    ax_sum.axis("off")
-
-    summary = (
-        "Attention heads:   "
-        r"$\mathrm{score}_h = \sum_{i,d} |W_{\mathrm{out}}[i,\; h \cdot d_h : (h+1) \cdot d_h]|$"
-        "     → remove lowest-scoring heads,  slice Q / K / V / out_proj,  update num_heads & embed_dim"
-        "\n\n"
-        "MLP neurons:   "
-        r"$\mathrm{score}_n = \sum_{j} |W_{\mathrm{fc1}}[n, j]|$"
-        "     → remove lowest-scoring neurons,  slice fc1 rows & fc2 columns"
-        "\n\n"
-        "Both operations physically shrink tensors  →  real parameter reduction & memory savings\n"
-        "Quality collapses without fine-tuning;  latency improvement is non-monotonic (hardware tile alignment)"
-    )
-
-    ax_sum.text(0.5, 0.62, "Structured Pruning — Head + MLP Neuron Removal",
-                transform=ax_sum.transAxes, ha="center", va="center",
-                fontsize=13, fontweight="bold", color="#333333")
-    ax_sum.text(0.5, 0.2, summary, transform=ax_sum.transAxes,
-                ha="center", va="center", fontsize=9.5,
-                bbox=dict(boxstyle="round,pad=0.7", facecolor="#FFF3E0",
-                          edgecolor="#F44336", linewidth=1.5),
-                linespacing=2.0)
-
-    fig.suptitle("Structured Pruning — Head + MLP Neuron Removal",
-                 fontsize=15, fontweight="bold", y=0.98)
+    fig.suptitle("Structured Pruning — Head + MLP Neuron Removal", fontsize=14,
+                 fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
     path = FIG_DIR / "diagram_structured.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     print(f"  Saved {path}")
@@ -365,7 +318,7 @@ def draw_structured():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def draw_comparison():
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 7))
     fig.patch.set_facecolor("white")
 
     rows, cols = 6, 6
@@ -374,7 +327,7 @@ def draw_comparison():
         for r in range(rows):
             for c in range(cols):
                 color = C_ZERO if not mask[r, c] else C_KEPT
-                alpha = 0.15 if not mask[r, c] else 0.75
+                alpha = 0.12 if not mask[r, c] else 0.75
                 rect  = mpatches.FancyBboxPatch(
                     (c, rows - r - 1), 0.88, 0.88,
                     boxstyle="round,pad=0.05", linewidth=0.7,
@@ -383,50 +336,48 @@ def draw_comparison():
                 ax.add_patch(rect)
                 if not mask[r, c]:
                     ax.text(c + 0.44, rows - r - 0.56, "0",
-                            ha="center", va="center", fontsize=9,
-                            color="#bbbbbb")
-        ax.set_xlim(-0.1, cols)
-        ax.set_ylim(-0.8, rows + 0.5)
-        ax.set_aspect("equal")
+                            ha="center", va="center", fontsize=9, color="#bbbbbb")
+        ax.set_xlim(-0.2, cols + 0.2)
+        ax.set_ylim(-0.9, rows + 0.3)
         ax.axis("off")
-        ax.set_title(title, fontsize=13, fontweight="bold", pad=10)
-        ax.text(cols / 2, -0.55, subtitle, ha="center", fontsize=9.5,
+        ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
+        ax.text(cols / 2, -0.65, subtitle, ha="center", fontsize=9.5,
                 color="#555", style="italic")
 
-    # unstructured: scattered zeros
     np.random.seed(3)
     mask_unstruct = np.ones((rows, cols), dtype=bool)
     zero_idx = np.random.choice(rows * cols, size=int(rows * cols * 0.5), replace=False)
     mask_unstruct.flat[zero_idx] = False
 
-    # structured: remove 2 full rows (neurons)
     mask_struct = np.ones((rows, cols), dtype=bool)
-    mask_struct[[1, 4], :] = False   # prune rows 1 and 4
+    mask_struct[[1, 4], :] = False
 
     draw_grid(axes[0], mask_unstruct,
               "Unstructured Pruning",
-              "Individual weights zeroed (scattered) — tensor shape unchanged")
+              "Scattered zeros — tensor shape unchanged")
     draw_grid(axes[1], mask_struct,
               "Structured Pruning",
               "Entire rows removed — tensor is physically smaller")
 
-    # annotate column bracket for structured
+    # pruned-row annotations: placed outside the grid on the right side
     ax = axes[1]
-    for r_pruned, label in [(1, "pruned\nneuron"), (4, "pruned\nneuron")]:
+    ax.set_xlim(-0.2, cols + 2.2)   # widen right margin for annotations
+    for r_pruned in [1, 4]:
         y = rows - r_pruned - 0.56
-        ax.annotate("", xy=(cols + 0.05, y), xytext=(cols + 0.5, y),
+        ax.annotate("", xy=(cols + 0.1, y), xytext=(cols + 0.6, y),
                     arrowprops=dict(arrowstyle="<-", color=C_PRUNED, lw=1.5))
-        ax.text(cols + 0.6, y, label, va="center", fontsize=8,
+        ax.text(cols + 0.75, y, "pruned\nneuron", va="center", fontsize=8.5,
                 color=C_PRUNED, fontweight="bold")
 
-    kept_p  = mpatches.Patch(color=C_KEPT,  alpha=0.75, label="Kept weight")
-    zero_p  = mpatches.Patch(color=C_ZERO,  alpha=0.75, label="Zeroed weight")
-    for ax in axes:
-        ax.legend(handles=[kept_p, zero_p], loc="lower left", fontsize=9)
+    kept_p = mpatches.Patch(color=C_KEPT,  alpha=0.75, label="Kept weight")
+    zero_p = mpatches.Patch(color=C_ZERO,  alpha=0.6,  label="Zeroed / removed")
 
     fig.suptitle("Unstructured vs Structured Pruning — Key Difference",
-                 fontsize=14, fontweight="bold", y=1.02)
-    fig.tight_layout()
+                 fontsize=14, fontweight="bold")
+    fig.tight_layout(rect=[0, 0.08, 1, 0.96])
+    fig.legend(handles=[kept_p, zero_p], fontsize=10, ncol=2,
+               loc="lower center", bbox_to_anchor=(0.5, 0.01),
+               framealpha=0.95, edgecolor="#ccc")
     path = FIG_DIR / "diagram_comparison.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     print(f"  Saved {path}")
